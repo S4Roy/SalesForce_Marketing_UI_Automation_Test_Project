@@ -1,0 +1,6 @@
+{
+    "driver_path":  "put_your_chrome_driver_path_here",
+    "salesforce_login_username": "put_your_salesforce_username_here",
+    "salesforce_login_password": "put_your_salesforce_password_here",
+    "salesforce_login_url": "https://login.salesforce.com/?locale=in"
+}

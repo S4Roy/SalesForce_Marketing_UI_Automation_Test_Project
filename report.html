@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 22-Oct-2022 at 13:54:39 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "py": "1.11.0", "pytest": "7.1.3"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>macOS-10.16-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.1.1", "metadata": "2.0.2"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.9.0</td></tr></table>
+    <h2>Summary</h2>
+    <p>9 tests ran in 868.68 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">8 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">1 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_Marketing_Campaigns_TC004_I.py::test_TC004_Verify_diff_type_imported_campaigns</td>
+          <td class="col-duration">72.99</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">my_driver = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;6291d24e073579b19d41a0e92032713e&quot;)&gt;<br/>salesforce = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;6291d24e073579b19d41a0e92032713e&quot;)&gt;<br/><br/>    def test_TC004_Verify_diff_type_imported_campaigns(my_driver, salesforce):<br/>        salesforce<br/>        my_driver.find_element(By.XPATH, &quot;//input[@class=&#x27;filter-box input&#x27;]&quot;).send_keys(<br/>            bring_data_from_json_file(&quot;data_Marketing_Campaigns_TC004.json&quot;, &quot;search_key&quot;)<br/>        )  # send data import wizard into search keys<br/>    <br/>        #If below link not found then check your user settings<br/>        my_driver.find_element(<br/>            By.XPATH, &quot;//div[@title=&#x27;Data Import Wizard&#x27;]&quot;<br/>        ).click()  # click data import wizard<br/>        sleep(2)<br/>        iframe = my_driver.find_element(By.XPATH, &quot;//iframe&quot;)<br/>        my_driver.switch_to.frame(iframe)<br/>        sleep(2)<br/>        #Launch Wizard<br/>        my_driver.find_element(By.LINK_TEXT,&quot;Launch Wizard!&quot;).click()<br/>        sleep(5)<br/>        print(<br/>            &quot;According To Test Case In Data Import Wizard Bulk Import For Campaigns Option Not Found! Please Review Test Case! &quot;<br/>        )<br/>        my_driver.switch_to.default_content()<br/>        sleep(5)<br/>&gt;       assert False<br/><span class="error">E       assert False</span><br/><br/>test_Marketing_Campaigns_TC004_I.py:33: AssertionError<br/> -----------------------------Captured stdout setup------------------------------ <br/>
+Pre Condition met and Successfully login to Sales force application!
+<br/> ------------------------------Captured stdout call------------------------------ <br/>According To Test Case In Data Import Wizard Bulk Import For Campaigns Option Not Found! Please Review Test Case! 
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Successfully logout from Sales force application!
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_Marketing_Campaigns_TC001.py::test_TC001_verify_available_views</td>
+          <td class="col-duration">62.29</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+Pre Condition met and Successfully login to Sales force application!
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Marketing page displayed successfully!
+All Active Campaigns and My Active Campaigns Displaying! Final Expected Result Opted Sucessfully!
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Successfully logout from Sales force application!
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_Marketing_Campaigns_TC002.py::test_TC002_create_new_campaign</td>
+          <td class="col-duration">69.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+Pre Condition met and Successfully login to Sales force application!
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Campaigns page displayed successfully!
+A new campaigns form displayed Sucessfully!
+Campaign Created &amp; A new campaigns form displayed Sucessfully!
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Successfully logout from Sales force application!
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_Marketing_Campaigns_TC003.py::test_TC003_Modify_existing_campaign</td>
+          <td class="col-duration">136.71</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+Pre Condition met and Successfully login to Sales force application!
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Campaign found successfully
+Campaign in edit mode Sucessful !
+Campaign Modified &amp; A new campaigns form displayed Sucessfully!
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Successfully logout from Sales force application!
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_Marketing_Leads_TC005.py::test_TC005_Create_different_types_leads</td>
+          <td class="col-duration">69.91</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+Pre Condition met and Successfully login to Sales force application!
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Lead created successfully and a new lead creation page displayed Sucessfully!
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Successfully logout from Sales force application!
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_Marketing_Leads_TC006.py::test_TC006_Update_different_types_leads</td>
+          <td class="col-duration">77.46</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+Pre Condition met and Successfully login to Sales force application!
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Lead updated successfully and a new lead creation page displayed Sucessfully!
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Successfully logout from Sales force application!
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_Marketing_Leads_TC007.py::test_TC007_Import_leads_using_CSV_files</td>
+          <td class="col-duration">118.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+Pre Condition met and Successfully login to Sales force application!
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Leads.CSV file imported Sucessfully in Sales force without any errors
+Lead records loaded as bulk successfully !
+Uploaded leads from CSV found successfully!
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Successfully logout from Sales force application!
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_Marketing_Leads_TC008.py::test_TC008_Create_and_validate_Assignment_Manager_rules_for_Leads</td>
+          <td class="col-duration">124.83</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+Pre Condition met and Successfully login to Sales force application!
+<br/> ------------------------------Captured stdout call------------------------------ <br/>From Searchbox, Lead Assignment Rule created and New Rule definded Sucessfully!
+Newly created Rule Ran and Apply Sucessfully,The primary sales team member verify as earlier given in the time of rule creation!
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Successfully logout from Sales force application!
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_Marketing_Leads_TC009.py::test_TC009_import_leads_as_campaign_members_using_CSV_and_verify</td>
+          <td class="col-duration">136.62</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+Pre Condition met and Successfully login to Sales force application!
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Navigated to Campaign  - Campaign Members view Successfully!
+Lead assignment rule should be selected &amp; Leads.CSV file imported Sucessfully in Sales force without any errors
+Bulk Data Uploaded, Newly created Rule Ran and Apply Sucessfully,The primary member verify as Define on applied rule!
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Successfully logout from Sales force application!
+<br/></div></td></tr></tbody></table></body></html>
